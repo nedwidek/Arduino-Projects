@@ -3,7 +3,9 @@
   *  Author:  Erik Nedwidek
   *  Date:    2013/03/18
   *  License: BSD
-  *  
+  *  Requires:
+  *     Bounce - http://playground.arduino.cc/code/bounce
+  
   *  Uses a momentary push button to turn a LED on and off.
   *  Each press of the button will turn the led on if it is
   *  off and vice versa.
@@ -42,8 +44,10 @@ void loop() {
 
 void handleButton() {
   
-  // Read the button state and if pressed, wait for the user to
-  // release it. Then flip the state of ledOn.
+  // Ask the bouncer to update and if we're on the falling edge,
+  // flip the state of the LED. Falling edge returning true means
+  // the prior time update was called the button read HIGH
+  // (pushed in our case), but now it reads LOW.
   bouncer.update(); 
   if(bouncer.fallingEdge()) {
     ledOn = !ledOn;
