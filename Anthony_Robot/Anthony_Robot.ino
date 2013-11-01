@@ -1,3 +1,9 @@
+/**
+  * Code used to animate a robot costume for my nephew. Written in my sister's great 
+  * room with family and kid's friends visiting. Wholely unoptimized, glued together
+  * from other code, but works and the result was very impressive on Halloween.
+  * Video demo: http://www.youtube.com/watch?v=A2VtEYe8-CI
+  */
 #include <Keypad.h>
 #include <Wire.h>
 #include "Adafruit_LEDBackpack.h"
@@ -5,27 +11,44 @@
 #include <Adafruit_NeoPixel.h>
 #include <Bounce.h>
 
+// Animation tick
 const int animStep = 15;
+// Keep track of ticks for LED matrices animation.
 byte subAnimStep = 0;
+// Keep track of output from millis() on last tick.
 unsigned long lastAnimStep = 0;
+// Last color used on the LED matrices.
 byte matrixColor = 0; 
 
+// Flag if we are scrolling text on the LED matrices.
 boolean drawingText = false;
+// The text that we are scrolling.
 char* scrollingText;
+// The length of the text we are scrolling.
 int scrollLength;
+// Where we are in the scroll.
 int scrollOffset;
+// The color of the text.
 byte scrollColor;
+// The number of ticks since the last scroll.
 int scrollStep = 0;
 
+// The timeout in milliseconds for the keypad.
 const int keypadTimeout = 1000;
+// The time from millis() when the last key was pressed on the keypad.
 unsigned long keypadTime = 0;
+// Are we processing the keypad? IOW, are we waiting on another press or the timeout
 boolean keypadUse = false;
+// Had a piezo speaker wired in, but not used.
 int beepLen = 200;
+// The default display on the matrices when we start processing the keypad.
 char code[3] = {'-', '-', '-'};
+// How many keypresses? (zero indexed)
 byte codePtr = -1;
 boolean fullCode;
 boolean goodCode;
 
+// Initialize the membrane keypad
 const byte ROWS = 4; //four rows
 const byte COLS = 3; //three columns
 char keys[ROWS][COLS] = {
@@ -38,10 +61,13 @@ byte rowPins[ROWS] = {12, 11, 10, 9}; //connect to the row pinouts of the keypad
 byte colPins[COLS] = {8, 7, 6}; //connect to the column pinouts of the keypad
 
 Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS ); 
+
+// Initialize our 3 bi-color LED matrices.
 Adafruit_BicolorMatrix matrix0 = Adafruit_BicolorMatrix();
 Adafruit_BicolorMatrix matrix1 = Adafruit_BicolorMatrix();
 Adafruit_BicolorMatrix matrix2 = Adafruit_BicolorMatrix();
 
+// Using the faces from Adafruit's demo code.
 static const uint8_t PROGMEM
   smile_bmp[] =
   { B00111100,
@@ -71,11 +97,14 @@ static const uint8_t PROGMEM
     B01000010,
     B00111100 };
   
+// Keep track of our animation frames.  
 const int bmpSize = 3;
 int lastBmp = -1;
-  
+
+// Neopixel rings are on pin 13.
 #define NEO_PIN            13
 
+// Using rainbow effect from demo code. (My family really liked it and it saved me time)
 #define TOP_LED_FIRST  0 // Change these if the first pixel is not
 #define TOP_LED_SECOND 0 // at the top of the first and/or second ring.
 
@@ -134,6 +163,7 @@ uint8_t
 int8_t
   eyeMotion    =   0; // Distance from prior to new position
 
+// LED on momentary switch on pin 4 and the switch on pin 1.
 int ledPin    = 4;
 int switchPin = 1;
 boolean ledOn = true;
@@ -141,29 +171,39 @@ unsigned long ledStart;
 Bounce bouncer(switchPin, 20);
 
 void setup() {
+  // refer to the matrices documentation. I left one unjumpered (0x70), A0 jumpered (0x71), and A1 jumpered (0x72)
   matrix0.begin(0x70);  // pass in the address
   matrix1.begin(0x71);  // pass in the address
   matrix2.begin(0x72);  // pass in the address
   
+  // Matrices were mounted on a 90° rotation.
   matrix0.setRotation(1);
   matrix1.setRotation(1);
   matrix2.setRotation(1);
 
+  // From NeoPixel ring demo code (seed the PRNG with noise from analog pin 0)
   randomSeed(analogRead(A0));
   pixels.begin();
   
+  // Turn on the switch's led and set pin modes.
   pinMode(ledPin, OUTPUT);
   pinMode(switchPin, INPUT);
   digitalWrite(ledPin, HIGH);
 }
 
-void loop() {  
+void loop() {
+  // Keep track of the time.  
   unsigned long currentTime = millis();
   
+  // We want to be responsive to inputs. Handle them on every time loop() is called.
+
+  // Handle the momentary switch.
   handleButton();
   
+  // Read the keypad.
   char customKey = keypad.getKey();
   
+  // Handle a key if it was pushed.
   if (customKey){
     keypadUse = true;
     drawingText = false;
@@ -172,6 +212,7 @@ void loop() {
     handleKey(customKey);
   }
   
+  // Handle displaying scroll text after a code was entered or timing out the 
   if(currentTime - keypadTime > keypadTimeout && keypadUse) {
     keypadUse = false;
     if(fullCode) {
@@ -184,6 +225,8 @@ void loop() {
     }
   }
   
+
+  // Handle the false power button. 
   if (!ledOn) {
     if(currentTime - ledStart > 1000) {
       ledOn = true;
@@ -192,13 +235,17 @@ void loop() {
     }
   }
 
+  // Animations aren't handled every time. This loop creates a 'tick'. The NeoPixels are updated every tick.
+  // The scrolling text and matrix animations are only handled after a certain number of ticks. 
   if(currentTime - lastAnimStep > animStep) {
     lastAnimStep = currentTime;
     
+    // Are we scrolling text?
     if(drawingText) {
       handleScroll();
     }
     
+    // Code for NeoPixel ring eyes.
     uint8_t i, r, g, b, a, c, inner, outer, ep;
     int     y1, y2, y3, y4, h;
     int8_t  y;
@@ -307,14 +354,21 @@ void loop() {
     }
     pixels.show();
   
+    // Every 33 ticks we update the frame of animation being shown on the LED matrices.
+    // Unless we are working with the keypad, scrolling text, or doing the false power button.
     subAnimStep++;
     if(subAnimStep == 33 && !keypadUse && ! drawingText && ledOn) {
       subAnimStep = 0;
       lastBmp++;
+
+      // My sister asked if it could scroll my nephew's name after the faces display so I wedged it in
+      // here as an after thought. TODO: update to AnnaBot in a few years when my niece inherits the
+      // costume.
       if(lastBmp == -1) {
         lastBmp = 0;
         scrollText("My name is AnthonyBot", 150, LED_GREEN);
       }
+      // Intended to add more animation frames. TODO: add more in the future.
       if(lastBmp == bmpSize) {
         lastBmp = -2;
       }
@@ -354,6 +408,7 @@ void draw(const uint8_t *bitmap) {
   matrix2.writeDisplay();
 }
 
+// Handle the false power button.
 void handleButton() {
   
   // Ask the bouncer to update and if we're on the falling edge,
@@ -425,13 +480,15 @@ void handleKey(char key) {
       goodCode = false;
     }
     
-    code[0] = '-';
+    // First dash is never displayed. Optimizing away unnecessary code (TODO: untested).
+    //code[0] = '-';
     code[1] = '-';
     code[2] = '-';
     codePtr = -1;
   }
 }
 
+// We start the scroll offset at 0 and decrement. This will cause the text to scroll right to left.
 void scrollText(char* message, int messageSize, byte color) {
   drawingText = true;
   scrollingText = message;
@@ -443,14 +500,18 @@ void scrollText(char* message, int messageSize, byte color) {
 
 void handleScroll() {
   scrollStep++;
+  // Scroll the text every 4 ticks.
   if(scrollStep == 4) {
     scrollStep = 0;
     clearDisplays();
   
+    // Should probably be moved to setup as it never changes. (TODO: optimization?)
     matrix0.setTextWrap(false);
     matrix1.setTextWrap(false);
     matrix2.setTextWrap(false);
     
+    // Since we are scrolling on 3 8 LED wide matrices, offset the text 8, 16, and 24 pixels.
+    // This will make it appear to be scrolling across all 3.
     matrix0.setCursor(scrollOffset+24, 0);
     matrix1.setCursor(scrollOffset+16, 0);
     matrix2.setCursor(scrollOffset+8, 0);
@@ -469,6 +530,7 @@ void handleScroll() {
     
     scrollOffset--;
     
+    // Once the text is fully off the displays, we want to go right back into the animation.
     if(scrollOffset == -1 * scrollLength) {
       drawingText = false;
       subAnimStep = 32;
