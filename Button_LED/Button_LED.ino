@@ -12,12 +12,12 @@
   *
   */
   
-int ledPin    = 6;
-int switchPin = 7;
+int ledPin    = 4;
+int switchPin = 1;
 
 // We'll use a global variable to track whether the LED is on
 // or off.
-bool ledOn = false;
+bool ledOn = true;
 
 // Include and instantiate an instance of the Bounce object.
 // We want to debounce the switch signal with a 20ms interval.
@@ -35,6 +35,7 @@ void setup() {
   if(ledOn) {
     digitalWrite(ledPin, HIGH);
   }
+  Serial.begin(9600);
 }
 
 // Loop just calls our handleButton() method. 
@@ -50,6 +51,7 @@ void handleButton() {
   // (pushed in our case), but now it reads LOW.
   bouncer.update(); 
   if(bouncer.fallingEdge()) {
+    Serial.println("Button pushed");
     ledOn = !ledOn;
     
     if(ledOn) {
